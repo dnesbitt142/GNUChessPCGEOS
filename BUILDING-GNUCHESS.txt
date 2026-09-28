@@ -1,0 +1,68 @@
+GNU Chess 6.3.0 - standard PC/GEOS SDK build
+=============================================
+
+Layout
+------
+Extract this bundle over the root of a PC/GEOS checkout:
+
+  Appl/GNUChess/...
+  Installed/Appl/GNUChess/local.mk
+
+ROOT_DIR and WATCOM must already be set as required by the PC/GEOS SDK, and
+wpp, perl, mkmf and pmake must be on PATH.
+
+Linux
+-----
+  cd "$ROOT_DIR/Installed/Appl/GNUChess"
+  mkmf
+  pmake depend
+  pmake full
+
+Windows cmd.exe
+---------------
+  cd /d %ROOT_DIR%\Installed\Appl\GNUChess
+  mkmf
+  pmake depend
+  pmake full
+
+What local.mk adds
+------------------
+* 30 GNU Chess C++ engine objects to OBJS.
+* .cpp -> .obj and .cpp -> .eobj transformations using Open Watcom wpp.
+* GCxxxx text segment names required by the GEOS resource layout.
+* -zt512 so the expected *_DATA1 / *_DATA2 far-data segments are emitted.
+* OMF normalization after each C++ compile.
+* OMF normalization of gnuchess.obj / gnuchess.eobj before Glue links.
+* Engine-header dependencies (coarse: any engine .h change rebuilds all C++).
+
+Useful targets
+--------------
+  pmake cpp          Build only the non-EC C++ engine objects.
+  pmake cppec        Build only the EC C++ engine objects.
+  pmake prebuild     Build/normalize gnuchess.obj plus NC engine objects.
+  pmake prebuildec   Build/normalize gnuchess.eobj plus EC engine objects.
+  pmake full         Normal complete PC/GEOS build.
+
+The prebuild.sh and prebuild.cmd files are optional wrappers around
+"pmake prebuild". They are no longer required for the normal build.
+
+OMF normalizer
+--------------
+Python is no longer required.
+
+Manual Linux use:
+  "$ROOT_DIR/Appl/GNUChess/tools/omf_normalize.sh" foo.obj bar.obj
+
+Manual Windows use:
+  %ROOT_DIR%\Appl\GNUChess\tools\omf_normalize.cmd foo.obj bar.obj
+
+Both front ends use omf_normalize.pl because Perl is already a standard
+PC/GEOS SDK prerequisite on Linux and Windows. local.mk calls the Perl core
+directly so the makefile itself is host-independent.
+
+Notes
+-----
+Open Watcom warnings such as W367/W368 (constant condition), W013
+(unreachable code after constant folding), and W014 (unused header symbol) are
+expected in this port. -fr is used for engine C++ compilation so warnings are
+printed to the console without creating .err side files.

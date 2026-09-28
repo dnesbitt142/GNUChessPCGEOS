@@ -1,0 +1,350 @@
+/* GNU Chess 6.3.0 native PC/GEOS interface. GPL-3.0-or-later. */
+@include <stdapp.goh>
+#include <Ansi/string.h>
+#include <Ansi/stdio.h>
+#include <ec.h>
+#include <gstring.h>
+#include <token.h>
+#include "engine/gcbridge.h"
+
+#define CELL 28
+#define LEFT 20
+#define TOP 8
+#define BOARD_W 264
+#define BOARD_H 264
+
+@class GNUChessProcessClass, GenProcessClass;
+@message void MSG_GC_NEW();
+@message void MSG_GC_PLAY();
+@message void MSG_GC_ENGINE();
+@message void MSG_GC_UNDO();
+@message void MSG_GC_DEPTH();
+@endc;
+@classdecl GNUChessProcessClass, neverSaved;
+
+@include "pieceicons.goh"
+@include "appicons.goh"
+
+@start AppResource;
+@object GenApplicationClass GNUChessApp = {
+ GI_visMoniker = list { @AppMoniker, @GCAppIcon48Color, @GCAppIcon48Mono,
+  @GCAppIcon32Color, @GCAppIcon32Mono, @GCAppIcon64Color, @GCAppIcon64Mono,
+  @GCAppIconCGA };
+ GI_comp = @ChessPrimary;
+ gcnList(MANUFACTURER_ID_GEOWORKS,GAGCNLT_WINDOWS) = @ChessPrimary;
+}
+@visMoniker AppMoniker = "GNU Chess 6.3.0";
+@end AppResource;
+
+@start Interface;
+@object GenPrimaryClass ChessPrimary = {
+ GI_visMoniker = list { @AppMoniker, @GCAppIcon48Color, @GCAppIcon48Mono,
+  @GCAppIcon32Color, @GCAppIcon32Mono, @GCAppIcon64Color, @GCAppIcon64Mono,
+  @GCAppIconCGA };
+ GI_comp = @Buttons, @ChessView, @MoveControls, @StatusText;
+ HINT_ORIENT_CHILDREN_VERTICALLY;
+ HINT_SIZE_WINDOW_AS_DESIRED;
+}
+@object GenInteractionClass Buttons = {
+ GI_comp = @NewButton, @EngineButton, @UndoButton, @DepthButton;
+ HINT_ORIENT_CHILDREN_HORIZONTALLY;
+}
+@object GenTriggerClass NewButton = {
+ GI_visMoniker = "New game";
+ GTI_destination = process;
+ GTI_actionMsg = MSG_GC_NEW;
+}
+@object GenTriggerClass EngineButton = {
+ GI_visMoniker = "Engine move";
+ GTI_destination = process;
+ GTI_actionMsg = MSG_GC_ENGINE;
+}
+@object GenTriggerClass UndoButton = {
+ GI_visMoniker = "Undo turn";
+ GTI_destination = process;
+ GTI_actionMsg = MSG_GC_UNDO;
+}
+@object GenTriggerClass DepthButton = {
+ GI_visMoniker = "Depth 1-4";
+ GTI_destination = process;
+ GTI_actionMsg = MSG_GC_DEPTH;
+}
+@object GenViewClass ChessView = {
+ /* Mouse-driven drawing surface: do not trap keyboard traversal in process. */
+ GVI_attrs = @default & ~GVA_FOCUSABLE;
+ /* The board fits the viewport, so scrollbars and content-size caps are
+  * unnecessary. Preserve the original viewport as the minimum size. */
+ GVI_horizAttrs = 0;
+ GVI_vertAttrs = 0;
+ GVI_content = process;
+ GVI_docBounds = {0,0,BOARD_W,BOARD_H};
+ HINT_INITIAL_SIZE = {SST_PIXELS | BOARD_W, SST_PIXELS | BOARD_H};
+ HINT_MINIMUM_SIZE = {SST_PIXELS | BOARD_W, SST_PIXELS | BOARD_H, 0};
+ HINT_EXPAND_WIDTH_TO_FIT_PARENT;
+ HINT_EXPAND_HEIGHT_TO_FIT_PARENT;
+ ATTR_GEN_VIEW_DOES_NOT_ACCEPT_TEXT_INPUT;
+}
+@object GenInteractionClass MoveControls = {
+ GI_comp = @MoveText, @MoveButton;
+ HINT_ORIENT_CHILDREN_HORIZONTALLY;
+}
+@object GenTextClass MoveText = {
+ GI_visMoniker = "Move (e2e4):";
+ GTXI_text = "";
+ GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+ GTXI_maxLength = 5;
+}
+@object GenTriggerClass MoveButton = {
+ GI_visMoniker = "Play";
+ GTI_destination = process;
+ GTI_actionMsg = MSG_GC_PLAY;
+}
+@object GenTextClass StatusText = {
+ GI_attrs = @default | GA_READ_ONLY;
+ GTXI_text = "White to move. Depth 2.";
+ GTXI_attrs = @default | GTA_SINGLE_LINE_TEXT;
+ GTXI_maxLength = 120;
+ HINT_EXPAND_WIDTH_TO_FIT_PARENT;
+ HINT_MINIMUM_SIZE = { SST_PIXELS | BOARD_W, SST_LINES_OF_TEXT | 1, 0 };
+}
+@end Interface;
+
+static sword selected=-1;
+static short depth=2;
+static char boardChars[64];
+static char lastMove[6]="";
+static Boolean busy=FALSE;
+static Boolean ready=FALSE;
+/* Drawing remains in the original logical 264x264 coordinate system. The
+ * view itself stays at scale 1; only this application's GState is scaled. */
+static sword viewPixelWidth=BOARD_W, viewPixelHeight=BOARD_H;
+static sword boardOffsetX=0, boardOffsetY=0;
+static WWFixedAsDWord boardScale=MakeWWFixed(1);
+
+void _pascal GCFatal(const char *reason){
+ /* Internal engine failures must not return into an invalid engine state. */
+ (void)reason;
+ FatalError(0x4743);
+ for(;;){}
+}
+
+static void SetStatus(const char *text){
+ @call StatusText::MSG_VIS_TEXT_REPLACE_ALL_PTR(text,0);
+ /* A status update must show its beginning, rather than scrolling to the end. */
+ @call StatusText::MSG_VIS_TEXT_SELECT_START();
+}
+static void UpdateStatus(void){
+ char line[120];short state;
+ if(!ready){SetStatus("Not enough memory. Close other applications and press New game.");return;}
+ state=GCStatus();
+ switch(state){
+ case 2:SetStatus(GCTurn()?"Checkmate. White wins.":"Checkmate. Black wins.");return;
+ case 3:SetStatus("Draw: stalemate.");return;
+ case 4:SetStatus("Draw: threefold repetition.");return;
+ case 5:SetStatus("Draw: fifty-move rule.");return;
+ case 6:SetStatus("Draw: insufficient material.");return;
+ }
+ sprintf(line,"%s to move%s. Depth %d. Last: %s",
+  GCTurn()?"Black":"White",state==1?" (check)":"",depth,lastMove);
+ SetStatus(line);
+}
+static void InvalidateBoard(WindowHandle w){
+ GStateHandle gs;
+ if(w){
+  gs=GrCreateState(w);
+  GrInvalRect(gs,0,0,viewPixelWidth,viewPixelHeight);
+  GrDestroyState(gs);
+ }
+}
+static void ResizeBoard(word width,word height,WindowHandle w){
+ sword side;Boolean changed;
+ if(!w || !width || !height)return;
+ /* Graphics and mouse coordinates are signed 16-bit values. Real display
+  * sizes are smaller, but keep arithmetic bounded for unusual video modes. */
+ if(width>32767)width=32767;
+ if(height>32767)height=32767;
+ changed=(width!=(word)viewPixelWidth || height!=(word)viewPixelHeight);
+ viewPixelWidth=(sword)width;viewPixelHeight=(sword)height;
+ side=viewPixelWidth<viewPixelHeight?viewPixelWidth:viewPixelHeight;
+ if(side<BOARD_W)side=BOARD_W; /* Never shrink the original board. */
+ boardScale=GrUDivWWFixed(MakeWWFixed(side),MakeWWFixed(BOARD_W));
+ boardOffsetX=viewPixelWidth>side?(viewPixelWidth-side)/2:0;
+ boardOffsetY=viewPixelHeight>side?(viewPixelHeight-side)/2:0;
+ if(changed){
+  @call ChessView::MSG_GEN_VIEW_SET_DOC_BOUNDS(
+   (sdword)viewPixelHeight,(sdword)viewPixelWidth,0L,0L);
+ }
+ InvalidateBoard(w);
+}
+static sword BoardSquareAt(sword px,sword py){
+ WWFixedAsDWord xFixed,yFixed;sword x,y;
+ if(px<boardOffsetX || py<boardOffsetY)return -1;
+ /* Invert the exact same 16.16 scale used by GrApplyScale, keeping the
+  * fractional position until division. Ignore labels and letterbox margins. */
+ xFixed=GrUDivWWFixed(MakeWWFixed(px-boardOffsetX),boardScale);
+ yFixed=GrUDivWWFixed(MakeWWFixed(py-boardOffsetY),boardScale);
+ x=WWFixedToInt(xFixed);y=WWFixedToInt(yFixed);
+ if(x<LEFT || x>=LEFT+8*CELL || y<TOP || y>=TOP+8*CELL)return -1;
+ return (sword)((7-(y-TOP)/CELL)*8+(x-LEFT)/CELL);
+}
+static void Refresh(void){
+ GCGetSquares(boardChars);
+ InvalidateBoard(@call ChessView::MSG_GEN_VIEW_GET_WINDOW());
+ UpdateStatus();
+}
+static optr PieceBitmap(char piece){
+ switch(piece){
+ case 'K':return @GCWhiteKing;
+ case 'Q':return @GCWhiteQueen;
+ case 'R':return @GCWhiteRook;
+ case 'B':return @GCWhiteBishop;
+ case 'N':return @GCWhiteKnight;
+ case 'P':return @GCWhitePawn;
+ case 'k':return @GCBlackKing;
+ case 'q':return @GCBlackQueen;
+ case 'r':return @GCBlackRook;
+ case 'b':return @GCBlackBishop;
+ case 'n':return @GCBlackKnight;
+ case 'p':return @GCBlackPawn;
+ default:return 0;
+ }
+}
+static void DrawBoard(GStateHandle gs){
+ sword file,rank,x,y,sq;char text[2];optr piece;
+ MemHandle artHandle=OptrToHandle(@GCWhiteKing);
+ Boolean artLocked=(MemLock(artHandle)!=0);
+ GrSetAreaColor(gs,CF_INDEX,C_WHITE,0,0);
+ GrFillRect(gs,0,0,viewPixelWidth,viewPixelHeight);
+ GrSaveState(gs);
+ GrApplyTranslation(gs,MakeWWFixed(boardOffsetX),MakeWWFixed(boardOffsetY));
+ GrApplyScale(gs,boardScale,boardScale);
+ GrSetLineColor(gs,CF_INDEX,C_BLACK,0,0);
+ text[1]=0;
+ for(rank=0;rank<8;rank++)for(file=0;file<8;file++){
+  sq=rank*8+file;x=LEFT+file*CELL;y=TOP+(7-rank)*CELL;
+  GrSetAreaColor(gs,CF_INDEX,((rank+file)&1)?C_WHITE:C_LIGHT_GRAY,0,0);
+  /* Fill through the shared edge: subtracting one logical unit leaves a
+   * visible gap beside the one-device-pixel grid stroke when enlarged. */
+  GrFillRect(gs,x,y,x+CELL,y+CELL);
+  GrDrawRect(gs,x,y,x+CELL,y+CELL);
+  piece=PieceBitmap(boardChars[sq]);
+  if(piece && artLocked){
+   /* The 48px artwork occupies the original 24px logical footprint. It has
+    * more detail available when the whole board is enlarged. The entire
+    * LMem resource stays locked until all drawing is complete. */
+   GrSaveState(gs);
+   GrApplyTranslation(gs,MakeWWFixed(x+2),MakeWWFixed(y+2));
+   GrApplyScale(gs,MakeWWFixed(1)/2,MakeWWFixed(1)/2);
+   GrDrawBitmap(gs,0,0,(const Bitmap *)LMemDeref(piece),0);
+   GrRestoreState(gs);
+  }else if(piece){
+   /* A low-memory redraw still shows a playable position. */
+   text[0]=boardChars[sq];
+   GrSetFont(gs,FID_DTC_URW_SANS,MakeWWFixed(18));
+   GrSetTextColor(gs,CF_INDEX,C_BLACK,0,0);
+   GrDrawText(gs,x+7,y+3,text,1);
+  }
+  if(sq==selected){
+   GrSetLineColor(gs,CF_INDEX,C_BLUE,0,0);
+   GrDrawRect(gs,x+1,y+1,x+CELL-1,y+CELL-1);
+   GrDrawRect(gs,x+2,y+2,x+CELL-2,y+CELL-2);
+   GrSetLineColor(gs,CF_INDEX,C_BLACK,0,0);
+  }
+ }
+ if(artLocked)MemUnlock(artHandle);
+ GrSetTextColor(gs,CF_INDEX,C_BLACK,0,0);
+ GrSetFont(gs,FID_DTC_URW_SANS,MakeWWFixed(10));
+ for(file=0;file<8;file++){
+  text[0]='a'+file;GrDrawText(gs,LEFT+file*CELL+10,TOP+8*CELL+3,text,1);
+  text[0]='1'+file;GrDrawText(gs,5,TOP+(7-file)*CELL+8,text,1);
+ }
+ GrSetFont(gs,FID_DTC_URW_SANS,MakeWWFixed(9));
+ GrDrawText(gs,LEFT,TOP+8*CELL+17,"Click a piece, then its destination.",0);
+ GrRestoreState(gs);
+}
+static void EngineReply(void){
+ if(!ready || GCStatus()>1)return;
+ busy=TRUE;SetStatus("GNU Chess is thinking...");
+ GCEngine(depth,lastMove);
+ busy=FALSE;selected=-1;Refresh();
+}
+static void PlayCoordinate(char *text){
+ short i;
+ if(busy || !ready)return;
+ for(i=0;text[i];i++)if(text[i]>='A'&&text[i]<='Z')text[i]+='a'-'A';
+ if(!GCPlay(text)){SetStatus("Illegal move. Use e2e4; promotion: a7a8q/r/b/n.");return;}
+ strcpy(lastMove,text);selected=-1;Refresh();
+ @call MoveText::MSG_VIS_TEXT_REPLACE_ALL_PTR("",0);
+ EngineReply();
+}
+static void EnsureApplicationIcon(void){
+ MemHandle block=0;word size=0;const VisMoniker *moniker;
+ Boolean graphical=FALSE;
+ const dword token=TOKEN_CHARS('G','n','C','h');
+ /* The legacy TokenLockTokenMoniker C wrapper clobbers DS. Obtain a copy
+  * through TokenLoadMonikerBlock, whose C wrapper preserves the caller DS. */
+ if(TokenLoadMonikerBlock(token,0,
+   (DS_STANDARD << DT_DISP_SIZE_OFFSET) | DC_COLOR_4,
+   (VMS_ICON << VMSF_STYLE_OFFSET) | VMSF_GSTRING,&size,&block)){
+  moniker=(const VisMoniker *)MemLock(block);
+  if(moniker){
+   if(size>=sizeof(VisMoniker))graphical=(moniker->VM_type & VMT_GSTRING)!=0;
+   MemUnlock(block);
+  }
+  MemFree(block);
+ }
+ /* Replace the previous text-only cache entry once; preserve custom icons. */
+ if(!graphical)TokenDefineToken(token,0,@GCAppTokenList,0);
+}
+@method GNUChessProcessClass, MSG_GEN_PROCESS_OPEN_APPLICATION {
+ EnsureApplicationIcon();
+ ready=GCInit();GCGetSquares(boardChars);@callsuper();UpdateStatus();
+}
+@method GNUChessProcessClass, MSG_META_EXPOSED {
+ GStateHandle gs=GrCreateState(win);
+ GrBeginUpdate(gs);DrawBoard(gs);GrEndUpdate(gs);GrDestroyState(gs);
+}
+@method GNUChessProcessClass, MSG_META_CONTENT_VIEW_WIN_OPENED {
+ ResizeBoard(viewWidth,viewHeight,viewWindow);
+}
+@method GNUChessProcessClass, MSG_META_CONTENT_VIEW_SIZE_CHANGED {
+ ResizeBoard(viewWidth,viewHeight,viewWindow);
+}
+@method GNUChessProcessClass, MSG_GC_NEW {
+ if(busy)return;ready=GCInit();if(ready)GCNewGame();selected=-1;lastMove[0]=0;Refresh();
+}
+@method GNUChessProcessClass, MSG_GC_PLAY {
+ char text[8];
+ if(busy || !ready)return;
+ @call MoveText::MSG_VIS_TEXT_GET_ALL_PTR(text);
+ PlayCoordinate(text);
+}
+@method GNUChessProcessClass, MSG_GC_ENGINE {
+ if(!busy)EngineReply();
+}
+@method GNUChessProcessClass, MSG_GC_UNDO {
+ if(busy || !ready)return;
+ if(GCUndo()){selected=-1;lastMove[0]=0;Refresh();}
+ else SetStatus("No turn to undo. Only the most recent turn is retained.");
+}
+@method GNUChessProcessClass, MSG_GC_DEPTH {
+ if(busy || !ready)return;depth=depth%4+1;UpdateStatus();
+}
+@method GNUChessProcessClass, MSG_META_START_SELECT {
+ sword file,rank,sq;char text[6],piece;
+ retVal->flags=MRF_PROCESSED;
+ if(busy || !ready)return;
+ sq=BoardSquareAt(xPosition,yPosition);
+ if(sq<0)return;
+ file=sq%8;rank=sq/8;
+ piece=boardChars[sq];
+ if(selected<0 || (GCTurn()==0?(piece>='A'&&piece<='Z'):(piece>='a'&&piece<='z'))){
+  selected=sq;Refresh();return;
+ }
+ text[0]='a'+selected%8;text[1]='1'+selected/8;
+ text[2]='a'+file;text[3]='1'+rank;text[4]=0;
+ if((boardChars[selected]=='P'&&rank==7)||(boardChars[selected]=='p'&&rank==0)){
+  text[4]='q';text[5]=0;
+ }
+ PlayCoordinate(text);
+}

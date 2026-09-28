@@ -1,0 +1,89 @@
+/* Adapted for PC/GEOS on 2026-09-18; see docs/PORTING.md. GPL-3.0-or-later. */
+#include "porttypes.h"
+/* material.h
+
+   GNU Chess engine
+
+   Copyright (C) 2001-2011 Free Software Foundation, Inc.
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
+// material.h
+
+#ifndef MATERIAL_H
+#define MATERIAL_H
+
+// includes
+
+#include "board.h"
+#include "colour.h"
+#include "util.h"
+
+namespace engine {
+
+// constants
+
+enum mat_dummy_t {
+   MAT_NONE,
+   MAT_KK,
+   MAT_KBK, MAT_KKB,
+   MAT_KNK, MAT_KKN,
+   MAT_KPK, MAT_KKP,
+   MAT_KQKQ, MAT_KQKP, MAT_KPKQ,
+   MAT_KRKR, MAT_KRKP, MAT_KPKR,
+   MAT_KBKB, MAT_KBKP, MAT_KPKB, MAT_KBPK, MAT_KKBP,
+   MAT_KNKN, MAT_KNKP, MAT_KPKN, MAT_KNPK, MAT_KKNP,
+   MAT_KRPKR, MAT_KRKRP,
+   MAT_KBPKB, MAT_KBKBP,
+   MAT_NB
+};
+
+const gc_int DrawNodeFlag    = 1L << 0;
+const gc_int DrawBishopFlag  = 1L << 1;
+
+const gc_int MatRookPawnFlag = 1L << 0;
+const gc_int MatBishopFlag   = 1L << 1;
+const gc_int MatKnightFlag   = 1L << 2;
+const gc_int MatKingFlag     = 1L << 3;
+
+// types
+
+struct material_info_t {
+   uint32 lock;
+   uint8 recog;
+   uint8 flags;
+   uint8 cflags[ColourNb];
+   uint8 mul[ColourNb];
+   sint16 phase;
+   sint16 opening;
+   sint16 endgame;
+};
+
+// functions
+
+extern void material_init     ();
+
+extern void material_alloc    ();
+extern void material_clear    ();
+
+extern void material_get_info (material_info_t * info, const board_t * board);
+
+}  // namespace engine
+
+#endif // !defined MATERIAL_H
+
+// end of material.h
+
