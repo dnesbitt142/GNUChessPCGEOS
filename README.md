@@ -12,4 +12,4 @@ The game requires you to set up the PC/GEOS SDK [instructions](https://github.co
 
 `pmake full`
 
-The GNUChess back-end is written in C++ `local.mk` will automatically call a Perl helper script to compile the C++ source into object files. These are then imported into he PC/GEOS Project when `pmake` is invoked.
+The GNUChess back-end is written in C++ `local.mk` will automatically call a Perl helper script to compile the C++ source into object files. These are then imported into the PC/GEOS Project when `pmake` is invoked.
