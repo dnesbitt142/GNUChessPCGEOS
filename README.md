@@ -1,6 +1,8 @@
 # GNUChess for PC/GEOS
 The game requires you to set up the PC/GEOS SDK [instructions](https://github.com/bluewaysw/pcgeos).
 
+Perl is also required for the build process.
+
 ## How to build (once your SDK is set up):
 1. Unpack the `Appl` and `Installed` root level folders to `%ROOT_DIR%`/`$ROOT_DIR`
 2. In the terminal, navigate to `Installed/Appl/GNUChess`
