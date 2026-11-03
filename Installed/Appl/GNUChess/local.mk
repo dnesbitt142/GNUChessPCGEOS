@@ -19,6 +19,15 @@ CPP_EOBJS = \
         search_full.eobj see.eobj sort.eobj square.eobj trans.eobj util.eobj \
         value.eobj vector.eobj
 
+# The SDK appends these after its default -3 CPU selection.
+WCCNCOPTFLAGS = -0 -ox
+WCCECOPTFLAGS = -0
+
+GNUCHESS_LANGUAGE ?= en
+#if $(GNUCHESS_LANGUAGE) == "de"
+XGOCFLAGS += -DGNUCHESS_GERMAN
+#endif
+
 #include <$(SYSMAKEFILE)>
 
 .SUFFIXES : .cpp

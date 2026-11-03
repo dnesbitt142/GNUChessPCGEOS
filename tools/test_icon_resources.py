@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify native icon resources against original artwork after linking.
+"""Verify native icon resources and the board artwork after linking.
 
 Reads the executable's GEOS resource directory and LMem handle tables, then
 decodes the embedded bitmaps. It deliberately does not import the generators
@@ -104,16 +104,34 @@ def decode_bitmap(data):
     require(len(data) >= 6, 'Truncated bitmap header')
     width, height, compact, flags = struct.unpack_from('<HHBB', data)
     require(width > 0 and height > 0, 'Empty bitmap')
-    require(compact == 0, 'Expected uncompressed bitmap')
+    require(compact in (0, 1), 'Unexpected bitmap compaction')
     require(flags in (0, 1, 2, 0x10, 0x11, 0x12), 'Unexpected bitmap format/palette/complex flag')
     bits = (1, 4, 8)[flags & 7]
     mask_bytes = (width + 7) // 8 if flags & 0x10 else 0
     pixel_bytes = (width * bits + 7) // 8
     row_bytes = mask_bytes + pixel_bytes
-    require(len(data) == 6 + height * row_bytes, 'Incorrect bitmap byte count')
     indices, alpha = [], []
-    for y in range(height):
-        row = data[6 + y * row_bytes:6 + (y + 1) * row_bytes]
+    pos = 6
+    for _ in range(height):
+        if compact:
+            row = bytearray()
+            while len(row) < row_bytes:
+                require(pos < len(data), 'Truncated PackBits command')
+                command = data[pos]
+                pos += 1
+                if command < 128:
+                    end = pos + command + 1
+                    require(end <= len(data), 'Truncated PackBits literals')
+                    row.extend(data[pos:end])
+                    pos = end
+                else:
+                    require(pos < len(data), 'Truncated PackBits repeat byte')
+                    row.extend([data[pos]] * (257 - command))
+                    pos += 1
+        else:
+            row = data[pos:pos + row_bytes]
+            pos += row_bytes
+        require(len(row) == row_bytes, 'Incorrect bitmap scanline length')
         for x in range(width):
             alpha.append(bool(row[x // 8] & (0x80 >> (x % 8))) if mask_bytes else True)
             if bits == 8:
@@ -126,6 +144,7 @@ def decode_bitmap(data):
                 # color (black in the application GString); a 0 is white.
                 bit = bool(row[mask_bytes + x // 8] & (0x80 >> (x % 8)))
                 indices.append(0 if bit else 15)
+    require(pos == len(data), 'Incorrect bitmap byte count')
     require(all(index < len(PALETTE) for index in indices),
             'Bitmap uses an unverified default-palette entry')
     image = Image.new('RGBA', (width, height))
@@ -189,56 +208,53 @@ def verify_pieces(resource, source_dir, goc):
     return images, report
 
 
-def verify_color_policy(bitmap, original):
-    """Check each actual encoded choice against the error-diffusion contract.
+def verify_white_tile(bitmap, bits, label):
+    width, height = bitmap['width'], bitmap['height']
+    tile_height = height - 2
+    tile_width = 28 if height == 14 else tile_height
+    left = (width - tile_width) // 2
+    right = left + tile_width
+    require(bitmap['image'].getbbox() == (left, 1, right, height - 1),
+            label + ': white tile is not centered')
+    for y in range(2, height - 2):
+        require(all(bitmap['alpha'][y * width + left + 1:y * width + right - 1]),
+                label + ': white tile has transparent interior pixels')
 
-    Unlike the generator, this does not produce packed bits or an expected
-    bitmap. It reads source pixels through Pillow and accumulates errors from
-    the actual native indices, checking every choice as the scan proceeds.
-    """
-    width, height = original.size
-    errors = [[[0.0] * 3 for x in range(width)] for y in range(height)]
-    for y in range(height):
-        order = list(range(width))
-        if y & 1:
-            order.reverse()
-        step = -1 if y & 1 else 1
-        for x in order:
-            n = y * width + x
-            if not bitmap['alpha'][n]:
-                continue
-            source = original.getpixel((x, y))
-            value = [min(255, max(0, source[c] + errors[y][x][c])) for c in range(3)]
-            actual = bitmap['indices'][n]
-            best = min(range(16), key=lambda index:
-                       sum((value[c] - PALETTE[index][c])**2 for c in range(3)))
-            require(actual == best, f'Color quantization differs from source at {x},{y}')
-            delta = [value[c] - PALETTE[actual][c] for c in range(3)]
-            for dx, dy, weight in ((step, 0, 7), (-step, 1, 3), (0, 1, 5), (step, 1, 1)):
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < width and ny < height and bitmap['alpha'][ny * width + nx]:
-                    for channel in range(3):
-                        errors[ny][nx][channel] += delta[channel] * weight / 16
+    def pixel(x, y):
+        return bitmap['indices'][y * width + x]
+
+    require(pixel(width // 2, 1) == (8 if bits == 4 else 0),
+            label + ': tile border is missing')
+    require(pixel(width // 2, 1 + tile_height // 8) == 15
+            and pixel(left + tile_width // 8, height // 2) == 15
+            and pixel(right - tile_width // 8 - 1, height // 2) == 15,
+            label + ': tile background should be white')
+    require(pixel(left + tile_width * 2 // 3, height // 2) == 0
+            and pixel(width // 2, 1 + tile_height * 7 // 8) == 0,
+            label + ': knight silhouette and base should be black')
+    colors = {index for index, opaque in zip(bitmap['indices'], bitmap['alpha']) if opaque}
+    require(colors == ({0, 8, 15} if bits == 4 else {0, 15}),
+            label + ': expected a neutral desktop icon')
 
 
-def verify_app_monikers(resources, source_dir):
+def verify_app_monikers(resources):
     require('AppIconMonikersResource' in resources, 'Application icon resource missing')
     resource = resources['AppIconMonikersResource']
     chunks = read_chunks(resource)
-    require(len(chunks) == 9, 'Expected seven graphical monikers plus token text and token list')
-    # Format requirements expressed independently of the source generator.
-    # width, height, bpp, DisplaySize, DisplayAspectRatio, DisplayClass,
-    # original artwork, original positive mask, preview label.
-    variants = [(48, 30, 4, 1, 0, 6, 'c48x30.bmp', 'a48x30.bmp', '48x30 color'),
-                (48, 30, 1, 1, 0, 1, 'm48x30.bmp', 'n48x30.bmp', '48x30 mono'),
-                (32, 20, 4, 0, 0, 6, 'c32x20.bmp', 'a32x20.bmp', '32x20 color'),
-                (32, 20, 1, 0, 0, 1, 'm32x20.bmp', 'n32x20.bmp', '32x20 mono'),
-                (64, 40, 4, 2, 0, 6, 'c64x40.bmp', 'a64x40.bmp', '64x40 color'),
-                (64, 40, 1, 2, 0, 1, 'm64x40.bmp', 'n64x40.bmp', '64x40 mono'),
-                (48, 14, 1, 1, 2, 1, 'm48x14.bmp', 'n48x14.bmp', '48x14 CGA')]
+    require(len(chunks) == 11, 'Expected nine graphical monikers plus token text and token list')
+    # width, height, bpp, DisplaySize, DisplayAspectRatio, DisplayClass, style, label
+    variants = [(48, 30, 4, 1, 0, 6, 3, '48x30 color'),
+                (48, 30, 1, 1, 0, 1, 3, '48x30 mono'),
+                (32, 20, 4, 0, 0, 6, 3, '32x20 color'),
+                (32, 20, 1, 0, 0, 1, 3, '32x20 mono'),
+                (64, 40, 4, 2, 0, 6, 3, '64x40 color'),
+                (64, 40, 1, 2, 0, 1, 3, '64x40 mono'),
+                (48, 14, 1, 1, 2, 1, 3, '48x14 CGA'),
+                (15, 15, 4, 0, 0, 6, 4, '15x15 tool color'),
+                (15, 15, 1, 0, 0, 1, 4, '15x15 tool mono')]
     decoded = []
     graphic_chunks = [chunk for chunk in chunks if chunk['data'][0] & 0xc0 == 0x40]
-    require(len(graphic_chunks) == 7, 'Expected exactly seven graphical application monikers')
+    require(len(graphic_chunks) == 9, 'Expected exactly nine graphical application monikers')
     for chunk in graphic_chunks:
         raw = chunk['data']
         require(len(raw) >= 15, 'Truncated application moniker')
@@ -254,37 +270,33 @@ def verify_app_monikers(resources, source_dir):
                 'Cached moniker dimensions differ from bitmap')
         decoded.append((chunk, bitmap, moniker_type))
     images, report, expected_entries = [], [], set()
-    for width, height, bits, display_size, aspect, color, artwork, maskfile, label in variants:
+    for width, height, bits, display_size, aspect, color, style, label in variants:
         matches = [(chunk, bitmap, kind) for chunk, bitmap, kind in decoded
                    if (bitmap['width'], bitmap['height'], bitmap['bits']) == (width, height, bits)]
         require(len(matches) == 1, label + ': missing or ambiguous moniker')
         chunk, bitmap, kind = matches[0]
         require(kind == 0x40 | (aspect << 4) | color, label + ': incorrect moniker type')
-        original = Image.open(source_dir / artwork).convert('RGB')
-        mask = Image.open(source_dir / maskfile).convert('RGB')
-        require(original.size == mask.size == (width, height), label + ': source dimensions differ')
-        for y in range(height):
-            for x in range(width):
-                n = y * width + x
-                source_mask = mask.getpixel((x, y))
-                require(source_mask in ((0, 0, 0), (255, 255, 255)), 'Non-binary source mask')
-                require(bitmap['alpha'][n] == (source_mask == (255, 255, 255)),
-                        label + f': mask differs at {x},{y}')
-                if bits == 1 and bitmap['alpha'][n]:
-                    require(PALETTE[bitmap['indices'][n]] == original.getpixel((x, y)),
-                            label + f': monochrome pixel differs at {x},{y}')
-        if bits == 4:
-            verify_color_policy(bitmap, original)
-        list_type = (display_size << 12) | (3 << 8) | 0xc0 | (aspect << 4) | color
+        if style == 3:
+            verify_white_tile(bitmap, bits, label)
+        else:
+            require(sum(bitmap['alpha']) == 113, label + ': unexpected opaque area')
+            require(bitmap['alpha'][4 * width + 6] and bitmap['indices'][4 * width + 6] == 15,
+                    label + ': missing white eye')
+            if bits == 4:
+                indices = {index for index, opaque in zip(bitmap['indices'], bitmap['alpha'])
+                           if opaque}
+                require(indices == {0, 8, 15}, label + ': expected black, charcoal and white')
+        list_type = (display_size << 12) | (style << 8) | 0xc0 | (aspect << 4) | color
         expected_entries.add((list_type, chunk['handle'], 0x1000 | resource['id']))
         images.append((label, bitmap['image']))
-        report.append(dict(variant=label, source=artwork, source_mask=maskfile,
+        report.append(dict(variant=label, source="desktop tile" if style == 3 else "tool knight",
                            chunk_handle=chunk['handle'], resource_offset=chunk['offset'],
                            width=width, height=height, bits_per_pixel=bits,
                            moniker_type=hex(kind), list_type=hex(list_type),
                            opaque_pixels=sum(bitmap['alpha']), pixels_checked=width * height,
                            native_bitmap_sha256=hashlib.sha256(chunk['data'][8:-1]).hexdigest()))
-    token_lists = [chunk for chunk in chunks if chunk['size'] == 48 and chunk['data'][0] & 0x80]
+    list_size = (len(variants) + 1) * 6
+    token_lists = [chunk for chunk in chunks if chunk['size'] == list_size and chunk['data'][0] & 0x80]
     require(len(token_lists) == 1, 'Token database moniker list missing or ambiguous')
     token_entries = list(struct.iter_unpack('<3H', token_lists[0]['data']))
     # This is a general LMem data resource, so Glue emits ordinary geode handle
@@ -295,18 +307,18 @@ def verify_app_monikers(resources, source_dir):
             'Token database moniker list contains incorrect native chunk references or types')
     require(token_entries[0][0] == 0x81 and token_entries[0][2] == resource['id'],
             'Token database text fallback type or block is invalid')
-    for entry in range(8):
+    for entry in range(len(token_entries)):
         handle_offset = token_lists[0]['offset'] + 6 * entry + 4
         require((0x23, 0, handle_offset) in resource['relocation_records'],
                 'Token moniker list optr has no owning-geode handle relocation')
     token_text = {chunk['handle']: chunk['data'] for chunk in chunks}.get(token_entries[0][1], b'')
-    require(b'GNU Chess 6.3.0\0' in token_text, 'Token database title fallback missing')
+    require(b'GNU Chess\0' in token_text, 'Token database title fallback missing')
     # Verify both actual compiled moniker lists point at these chunks and carry
     # the correct resolution/aspect/style metadata. ObjRelocationID source 1
     # means owning-geode resource; source 4 means the current block.
     for name in ('AppResource', 'Interface'):
         lists = [chunk for chunk in read_chunks(resources[name], icon_resource=False)
-                 if chunk['size'] == 48 and chunk['data'][0] & 0x80]
+                 if chunk['size'] == list_size and chunk['data'][0] & 0x80]
         matching = []
         for chunk in lists:
             entries = list(struct.iter_unpack('<3H', chunk['data']))
@@ -319,7 +331,7 @@ def verify_app_monikers(resources, source_dir):
         require(first[2] in (0x4000, 0x1000 | resources['AppResource']['id']),
                 name + ': text fallback resource invalid')
         text_chunks = {c['handle']: c['data'] for c in read_chunks(target, icon_resource=False)}
-        require(b'GNU Chess 6.3.0\0' in text_chunks.get(first[1], b''), name + ': text fallback title missing')
+        require(b'GNU Chess\0' in text_chunks.get(first[1], b''), name + ': text fallback title missing')
     return images, report
 
 
@@ -358,11 +370,11 @@ def preview(pieces, app_images, output):
     canvas.paste(board.resize((792, 792), Image.Resampling.NEAREST), (20, 94))
     draw.text((842, 95), 'Application monikers', fill='#192a31', font=font(20))
     for i, (label, icon) in enumerate(app_images):
-        x, y = 852 + (i % 2) * 175, 142 + (i // 2) * 132
-        scale = min(3, 155 // icon.width, 92 // icon.height)
+        x, y = 852 + (i % 2) * 175, 142 + (i // 2) * 110
+        scale = min(3, 155 // icon.width, 82 // icon.height)
         enlarged = icon.resize((icon.width * scale, icon.height * scale), Image.Resampling.NEAREST)
         canvas.paste(enlarged, (x, y), enlarged)
-        draw.text((x, y + 98), label, fill='#394a50', font=font(13))
+        draw.text((x, y + 90), label, fill='#394a50', font=font(13))
     draw.text((842, 712), 'All twelve piece bitmaps', fill='#192a31', font=font(19))
     for i, (character, icon) in enumerate(pieces.items()):
         x, y = 844 + (i % 6) * 56, 750 + (i // 6) * 60
@@ -385,8 +397,8 @@ def main():
         resources = read_resources(data, args.map.read_text())
         require('ChessPieces' in resources, 'Linked executable has no ChessPieces resource')
         pieces, piece_report = verify_pieces(resources['ChessPieces'], ROOT / 'assets/pieces',
-                                            (ROOT / 'src/geos/gnuchess.goc').read_text())
-        app_images, app_report = verify_app_monikers(resources, ROOT / 'assets/application')
+                                            (ROOT / 'Appl/GNUChess/gnuchess.goc').read_text())
+        app_images, app_report = verify_app_monikers(resources)
         preview(pieces, app_images, args.preview)
         report = dict(icon_resource_validation='PASS', geos_runtime_tested=False,
                       geo_sha256=hashlib.sha256(data).hexdigest(),

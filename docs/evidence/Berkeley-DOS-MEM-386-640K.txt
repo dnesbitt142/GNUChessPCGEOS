@@ -1,0 +1,9 @@
+
+Memory Type           Total        Used         Free
+----------------   ----------   ----------   ----------
+Conventional             640K           7K         633K
+----------------   ----------   ----------   ----------
+Total under 1 MB         640K           7K         633K
+
+Largest free Conventional Memory block   632K (647,088 bytes)
+

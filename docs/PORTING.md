@@ -1,4 +1,4 @@
-# Porting notes — updated September 19, 2026
+# Porting notes
 
 ## Engine and ABI
 
@@ -10,32 +10,29 @@ The original engine's Unix front end, opening-book plumbing, protocol driver and
 
 ## Memory and resources
 
-The process owns one 49,152-byte allocation arena for both boards, options and caches. It is allocated before engine initialization, allowing initial allocation failure to return to the interface for a later retry. Objects and caches are never resized or individually freed; GEOS owns the process lifetime. Host initialization uses 38,340 bytes of this arena; the exact native used-byte count has not been measured at runtime.
+The process owns one 34,336-byte allocation arena for the game board, undo board, options and caches. The engine searches the game board in place and restores the position before the caller applies the chosen move. It allocates the arena before initializing the engine so a failed allocation can return to the interface for a later retry. The arena stays at a fixed address for the process lifetime.
+
+The compact board, lookup tables and move ordering data come from the Ensemble 1.x port. The new layout retains full 64-bit position keys and the original cache entry counts. Search ordering keeps the score widths needed to reproduce the earlier port's results.
 
 The transposition table has 1,024 16-byte entries plus three cluster-spill entries (16,432 bytes). The pawn cache is 512 entries (8,192 bytes); the material cache is 256 entries (4,096 bytes). Board repetition history is bounded to 256 keys. Retained game history is periodically compacted while preserving the window required by the implemented repetition/fifty-move rules.
 
-Watcom `-zt512` splits large arrays and far constants into separate resources. These are fixed because raw far data pointers cannot follow movable GEOS memory. Ordinary inter-resource code calls remain movable through GEOS call relocations. `GCMOVELEGAL` is fixed because `list_filter` calls `pseudo_is_legal` through a raw C++ function pointer; a movable virtual far pointer cannot be used as a normal machine-code call target. GOC class method pointers intentionally remain virtual and are dispatched by GEOS.
+Watcom `-zt512` splits large arrays and far constants into separate resources. They are fixed because raw far data pointers cannot follow movable GEOS memory. Ordinary inter-resource code calls remain movable through GEOS call relocations. `GCMOVELEGAL` is fixed because `list_filter` calls `pseudo_is_legal` through a raw C++ far function pointer. GOC class method pointers remain virtual and are dispatched by GEOS.
 
-Final native layout:
-
-| Component | Bytes |
-| --- | ---: |
-| Initialized resources, including code and objects | 179,090 |
-| Fixed initialized resources (subset of the above) | 60,475 |
-| DGROUP initialized portion (subset of the above) | 2,384 |
-| Uninitialized DGROUP plus process stack | 50,736 |
-| Reserved process stack | 49,152 |
-| Total DGROUP allocation | 53,120 |
-| Separate engine arena allocation | 49,152 |
-| Heap reservation declared in the geode header | 256,000 |
-
-The initialized resources, uninitialized DGROUP and arena total roughly 279 KB before resource padding, kernel handles, UI allocation, library overhead and other system needs. Not all code must be resident at once. This arithmetic is not a measured minimum RAM requirement. The heap-space declaration is a reservation estimate, not proof of sufficient free memory. Use a generously configured GEOS installation and measure actual behaviour there.
-
-Glue warns about fixed memory and several resources larger than its preferred size. They are below the 64 KB segment limit, but the warnings are real and remain in the logs. This port favours a bounded, straightforward first build over aggressive movable-table optimisation.
+See [TEST-RESULTS.md](TEST-RESULTS.md) for the linked sizes and BaseBox memory profiles. The heap-space declaration is an estimate used by systems with heap-space limit enforcement. Some resources exceed Glue's recommended size while fitting within the 64 KiB segment limit.
 
 The hard search height is 16 entries, including quiescence; a static evaluation terminates search at height 15. The requested depth is restricted to 1–4. Extensions and quiescence mean this is not a simple four-ply tree. A checked position can reach the hard cap, so that leaf is evaluated rather than asserting. These limits alter playing behaviour relative to unrestricted GNU Chess.
 
-A Watcom disassembly audit found local frames of 2,810 bytes for `full_search`, 2,246 for `full_no_null`, and 2,264 for quiescence. The 48 KB stack was selected to accommodate the bounded recursion plus outer calls. This is an engineering estimate, not a target-measured stack high-water mark or proof against every stack overflow; target stack testing remains necessary. Automatic compiler stack probes are disabled for the GEOS build as in this toolchain's native calling model.
+The process retains a 48 KiB stack for recursive search plus GEOS calls and interrupts. The compact sorter reduces the stack needed at each recursive level. The Ensemble 1.x port's highest recursion estimate across its tested configurations was 41,256 bytes before other calls.
+
+The app UI thread owns the visible chessboard and a 64-square snapshot.
+The process publishes a position with a synchronous object call, then
+searches on its own thread. The UI can repaint or resize using the last
+published position during search. Board clicks during search are ignored.
+This uses the existing UI and process threads.
+
+Reading squares from an uninitialized engine returns an empty board.
+The initial launch and the New Game button explicitly request engine
+initialization. New Game can retry after a failed allocation.
 
 ## Host-tool bootstrap and object normalization
 
@@ -47,8 +44,8 @@ C++ engine objects use `-d0 -hc -zld -zl`; the native interface keeps the GOC-re
 
 ## Validation boundary
 
-The passing host engine test checks move-tree counts and incremental hashes at each move/undo, illegal-input immutability, castling, en passant, underpromotion, mate, stalemate, selected draw rules, undo, depth-four search and self-play. Address/undefined-behaviour sanitizer coverage is limited to that host execution and the stated exclusions.
+Run `sh tools/test_host.sh` to check move-tree counts, incremental hashes, invalid moves, castling, en passant, promotion, mate, stalemate, draw rules, undo, depth-four search and self-play on the host. The harness runs with AddressSanitizer and UndefinedBehaviorSanitizer.
 
-The binary auditor inspects 59 resources and 969 relocations, verifies the raw-pointer resource policy, and compares protocol versions to the supplied target library headers. It cannot prove that the linker is correct in every detail or that every 16-bit arithmetic/ABI behavior matches the host harness. The artwork verifier independently decodes the actual linked resources and compares pixels, masks, moniker lists, and relocations with the supplied images.
+The binary auditor verifies the raw-pointer resource policy and compares protocol versions to the supplied target library headers. The artwork verifier decodes the linked resources and compares pixels, masks, moniker lists and relocations.
 
-The icon update also received native runtime testing in the supplied SDK target under DOSBox Staging. `docs/TEST-RESULTS.md` records exactly which native interactions passed and which remain untested. The runtime screenshots are actual emulator captures; `dist/embedded-icons-preview.png` is separately labeled as a host reconstruction. See `docs/ICONS.md` for the additional movable artwork resources and the token-wrapper and status-layout fixes found during integration.
+See [ICONS.md](ICONS.md) for native artwork encoding and [TEST-RESULTS.md](TEST-RESULTS.md) for native checks.

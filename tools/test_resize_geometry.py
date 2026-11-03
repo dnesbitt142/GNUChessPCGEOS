@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check the actual board resize and hit-test functions with host UBSan.
 
-The functions are extracted from src/geos/gnuchess.goc rather than duplicated.
+The functions are extracted from Appl/GNUChess/gnuchess.goc rather than duplicated.
 Only the framework calls are replaced: fixed-point division uses an exact
 integer equivalent, and document-bounds/invalidation calls are recorded.
 This checks coordinate arithmetic, not GEOS layout or bitmap rendering.
@@ -22,7 +22,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "src/geos/gnuchess.goc"
+SOURCE = ROOT / "Appl/GNUChess/gnuchess.goc"
 LOG = ROOT / "logs/resize-geometry-tests.log"
 
 HARNESS_PREFIX = r"""
@@ -149,7 +149,7 @@ def main():
     harness = make_harness(source)
     lines = [
         "GNU Chess responsive-board coordinate checks",
-        "Source: src/geos/gnuchess.goc",
+        "Source: " + str(SOURCE.relative_to(ROOT)),
         "Source SHA-256: " + hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
         "Extracted functions: ResizeBoard, BoardSquareAt",
         "Compiler: " + args.cc,
