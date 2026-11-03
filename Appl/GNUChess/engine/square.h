@@ -88,8 +88,8 @@ const gc_int Light = 1;
 #define SQUARE_FILE(square)         ((square)&0xF)
 #define SQUARE_RANK(square)         ((square)>>4)
 
-#define SQUARE_FROM_64(square)      (SquareFrom64[square])
-#define SQUARE_TO_64(square)        (SquareTo64[square])
+#define SQUARE_FROM_64(square)      ((gc_int)SquareFrom64[square])
+#define SQUARE_TO_64(square)        ((gc_int)SquareTo64[square])
 
 #define SQUARE_IS_PROMOTE(square)   (SquareIsPromote[square])
 #define SQUARE_EP_DUAL(square)      ((square)^16)
@@ -111,13 +111,13 @@ typedef gc_int sq_t;
 
 // "constants"
 
-extern const gc_int SquareFrom64[64];
+extern const uint8 SquareFrom64[64];
 extern const gc_int RankMask[ColourNb];
 extern const gc_int PromoteRank[ColourNb];
 
 // variables
 
-extern gc_int SquareTo64[SquareNb];
+extern sint8 SquareTo64[SquareNb];
 extern bool SquareIsPromote[SquareNb];
 
 // functions

@@ -36,11 +36,11 @@
 
 #define IS_IN_CHECK(board,colour)         (is_attacked((board),KING_POS((board),(colour)),COLOUR_OPP((colour))))
 
-#define DELTA_INC_LINE(delta)             (DeltaIncLine[DeltaOffset+(delta)])
-#define DELTA_INC_ALL(delta)              (DeltaIncAll[DeltaOffset+(delta)])
-#define DELTA_MASK(delta)                 (DeltaMask[DeltaOffset+(delta)])
+#define DELTA_INC_LINE(delta)             ((gc_int)DeltaIncLine[DeltaOffset+(delta)])
+#define DELTA_INC_ALL(delta)              ((gc_int)DeltaIncAll[DeltaOffset+(delta)])
+#define DELTA_MASK(delta)                 ((gc_int)DeltaMask[DeltaOffset+(delta)])
 
-#define INC_MASK(inc)                     (IncMask[IncOffset+(inc)])
+#define INC_MASK(inc)                     ((gc_int)IncMask[IncOffset+(inc)])
 
 #define PIECE_ATTACK(board,piece,from,to) (PSEUDO_ATTACK((piece),(to)-(from))&&line_is_empty((board),(from),(to)))
 #define PSEUDO_ATTACK(piece,delta)        (((piece)&DELTA_MASK(delta))!=0)
@@ -60,11 +60,11 @@ struct attack_t {
 
 // variables
 
-extern gc_int DeltaIncLine[DeltaNb];
-extern gc_int DeltaIncAll[DeltaNb];
+extern sint8 DeltaIncLine[DeltaNb];
+extern sint8 DeltaIncAll[DeltaNb];
 
-extern gc_int DeltaMask[DeltaNb];
-extern gc_int IncMask[IncNb];
+extern uint8 DeltaMask[DeltaNb];
+extern uint8 IncMask[IncNb];
 
 // functions
 

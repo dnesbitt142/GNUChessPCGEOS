@@ -37,20 +37,34 @@ namespace engine {
 
 // types
 
+// Bad captures are replayed in their original order; their scores are never
+// read. Keep the full move capacity without a second, unused score array.
+struct bad_moves_t {
+   uint16 size;
+   uint16 move[ListSize];
+};
+
 struct sort_t {
-   gc_int depth;
-   gc_int height;
-   gc_int trans_killer;
-   gc_int killer_1;
-   gc_int killer_2;
-   gc_int gen;
-   gc_int test;
-   gc_int pos;
-   gc_int value;
+   uint16 trans_killer;
+   uint16 killer_1;
+   uint16 killer_2;
+   uint8 gen;
+   uint8 test;
+   uint16 pos;
+   uint16 value; // history probability/default, always 0..16384
+   board_t * board;
+   list_t list[1];
+   bad_moves_t bad[1];
+};
+
+// Quiescence never defers bad captures and does not use killers or history.
+struct sort_qs_t {
+   uint8 gen;
+   uint8 test;
+   uint16 pos;
    board_t * board;
    const attack_t * attack;
    list_t list[1];
-   list_t bad[1];
 };
 
 // functions
@@ -60,8 +74,8 @@ extern void sort_init    ();
 extern void sort_init    (sort_t * sort, board_t * board, const attack_t * attack, gc_int depth, gc_int height, gc_int trans_killer);
 extern gc_int  sort_next    (sort_t * sort);
 
-extern void sort_init_qs (sort_t * sort, board_t * board, const attack_t * attack, bool check);
-extern gc_int  sort_next_qs (sort_t * sort);
+extern void sort_init_qs (sort_qs_t * sort, board_t * board, const attack_t * attack, bool check);
+extern gc_int  sort_next_qs (sort_qs_t * sort);
 
 extern void good_move    (gc_int move, const board_t * board, gc_int depth, gc_int height);
 

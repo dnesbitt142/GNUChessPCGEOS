@@ -33,7 +33,7 @@ namespace engine {
 
 // "constants"
 
-const gc_int SquareFrom64[64] = {
+const uint8 SquareFrom64[64] = {
    A1, B1, C1, D1, E1, F1, G1, H1,
    A2, B2, C2, D2, E2, F2, G2, H2,
    A3, B3, C3, D3, E3, F3, G3, H3,
@@ -49,7 +49,7 @@ const gc_int PromoteRank[ColourNb] = { 0xB0, 0x40 };
 
 // variables
 
-gc_int SquareTo64[SquareNb];
+sint8 SquareTo64[SquareNb];
 bool SquareIsPromote[SquareNb];
 
 // functions

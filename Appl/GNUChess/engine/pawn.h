@@ -34,11 +34,11 @@
 
 // macros
 
-#define BIT(n)       (BitEQ[n])
+#define BIT(n)       ((gc_int)BitEQ[n])
 
-#define BIT_FIRST(b) (BitFirst[b])
-#define BIT_LAST(b)  (BitLast[b])
-#define BIT_COUNT(b) (BitCount[b])
+#define BIT_FIRST(b) ((gc_int)BitFirst[b])
+#define BIT_LAST(b)  ((gc_int)BitLast[b])
+#define BIT_COUNT(b) ((gc_int)BitCount[b])
 
 namespace engine {
 
@@ -60,16 +60,16 @@ struct pawn_info_t {
 
 // variables
 
-extern gc_int BitEQ[16];
-extern gc_int BitLT[16];
-extern gc_int BitLE[16];
-extern gc_int BitGT[16];
-extern gc_int BitGE[16];
+extern uint8 BitEQ[16];
+extern uint8 BitLT[16];
+extern uint8 BitLE[16];
+extern uint8 BitGT[16];
+extern uint8 BitGE[16];
 
-extern gc_int BitFirst[0x100];
-extern gc_int BitLast[0x100];
-extern gc_int BitCount[0x100];
-extern gc_int BitRev[0x100];
+extern uint8 BitFirst[0x100];
+extern uint8 BitLast[0x100];
+extern uint8 BitCount[0x100];
+extern uint8 BitRev[0x100];
 
 // functions
 

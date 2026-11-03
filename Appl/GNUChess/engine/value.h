@@ -51,11 +51,11 @@ const gc_int ValueEvalInf = ValueMate - 256; // handle mates upto 255 plies
 // macros
 
 #define VALUE_MATE(height) (-ValueMate+(height))
-#define VALUE_PIECE(piece) (ValuePiece[piece])
+#define VALUE_PIECE(piece) ((gc_int)ValuePiece[piece]) // preserve 32-bit arithmetic
 
 // variables
 
-extern gc_int ValuePiece[PieceNb];
+extern sint16 ValuePiece[PieceNb];
 
 // functions
 

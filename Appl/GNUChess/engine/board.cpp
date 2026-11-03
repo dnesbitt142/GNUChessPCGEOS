@@ -484,7 +484,7 @@ gc_int board_opening(const board_t * board) {
 
    gc_int opening;
    gc_int colour;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int sq, piece;
 
    ASSERT(board!=NULL);
@@ -513,7 +513,7 @@ gc_int board_endgame(const board_t * board) {
 
    gc_int endgame;
    gc_int colour;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int sq, piece;
 
    ASSERT(board!=NULL);

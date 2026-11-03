@@ -75,8 +75,7 @@ short GC_API GCEngine(short depth,char *result){
  if(!Game||GCStatus()>1)return 0;
  if(depth<1)depth=1;if(depth>4)depth=4;
  trim_history(Game);
- search_clear();board_copy(SearchInput->board,Game);
- SearchInput->depth_limit=depth;search();
+ search_clear();search(Game,depth);
  move=SearchBest->move;
  if(move==MoveNone)return 0;
  if(result)move_to_string(move,result,6);
@@ -90,7 +89,7 @@ short GC_API GCUndo(void){
 }
 void GC_API GCGetSquares(char *s){
  gc_int i,p;
- if(!Game && !GCInit()){memset(s,' ',64);return;}
+ if(!Game){memset(s,' ',64);return;}
  for(i=0;i<64;i++){p=Game->square[SQUARE_FROM_64(i)];s[i]=p==Empty?' ':(char)piece_to_char(p);}
 }
 short GC_API GCTurn(void){return Game?(short)Game->turn:0;}

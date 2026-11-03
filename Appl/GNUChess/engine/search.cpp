@@ -14,7 +14,6 @@ extern "C" {
 }
 #endif
 namespace engine {
-search_input_t SearchInput[1];
 search_info_t SearchInfo[1];
 search_root_t SearchRoot[1];
 search_current_t SearchCurrent[1];
@@ -29,19 +28,19 @@ void search_clear(){
  SearchCurrent->node_nb=0;
  SearchInfo->check_inc=1024;
  SearchInfo->check_nb=1024;
- SearchInput->depth_limit=2;
 }
-void search(){
+void search(const board_t *source, gc_int depth_limit){
  gc_int depth;
- gen_legal_moves(SearchInput->list,SearchInput->board);
- if (LIST_IS_EMPTY(SearchInput->list)) return;
- list_copy(SearchRoot->list,SearchInput->list);
- board_copy(SearchCurrent->board,SearchInput->board);
+ // Legal filtering may make temporary moves. Keep them off the source game
+ // and generate directly into the root list in the original move order.
+ board_copy(SearchCurrent->board,source);
+ gen_legal_moves(SearchRoot->list,SearchCurrent->board);
+ if (LIST_IS_EMPTY(SearchRoot->list)) return;
  trans_inc_date(Trans);
  sort_init();
  search_full_init(SearchRoot->list,SearchCurrent->board);
- for(depth=1;depth<=SearchInput->depth_limit;depth++){
-  board_copy(SearchCurrent->board,SearchInput->board);
+ for(depth=1;depth<=depth_limit;depth++){
+  board_copy(SearchCurrent->board,source);
   search_full_root(SearchRoot->list,SearchCurrent->board,depth,depth==1?SearchShort:SearchNormal);
  }
 }

@@ -68,29 +68,35 @@ const gc_int StackSize = 256; // GEOS: bounded repetition history
 
 // types
 
+// Board storage only: legal mailbox squares are 0x44..0xbb and sentinel is 0.
+// Keep sq_t/gc_int arithmetic and direction types unchanged.
+typedef uint8 board_sq_t;
+const gc_int BoardPieceCapacity = 16 + 1; // all original men + sentinel
+const gc_int BoardPawnCapacity = 8 + 1;   // promotion never creates pawns
+
 struct board_t {
 
-   gc_int square[SquareNb];
-   gc_int pos[SquareNb];
+   uint8 square[SquareNb]; // piece/edge codes are 0..255
+   sint8 pos[SquareNb]; // -1 sentinel or list index 0..15
 
-   sq_t piece[ColourNb][32]; // only 17 are needed
-   gc_int piece_size[ColourNb];
+   board_sq_t piece[ColourNb][BoardPieceCapacity];
+   uint8 piece_size[ColourNb];
 
-   sq_t pawn[ColourNb][16]; // only 9 are needed
-   gc_int pawn_size[ColourNb];
+   board_sq_t pawn[ColourNb][BoardPawnCapacity];
+   uint8 pawn_size[ColourNb];
 
-   gc_int piece_nb;
-   gc_int number[16]; // only 12 are needed
+   uint8 piece_nb;
+   uint8 number[12]; // one counter per coloured piece kind
 
-   gc_int pawn_file[ColourNb][FileNb];
+   uint8 pawn_file[ColourNb][FileNb]; // eight rank bits per file
 
-   gc_int turn;
-   gc_int flags;
-   gc_int ep_square;
+   uint8 turn;
+   uint8 flags;
+   uint8 ep_square;
    gc_int ply_nb;
    gc_int sp; // TODO: MOVE ME?
 
-   gc_int cap_sq;
+   uint8 cap_sq;
 
    gc_int opening;
    gc_int endgame;

@@ -34,7 +34,7 @@ namespace engine {
 
 // variables
 
-gc_int ValuePiece[PieceNb];
+sint16 ValuePiece[PieceNb];
 
 // functions
 

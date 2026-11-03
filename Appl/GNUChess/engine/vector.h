@@ -44,11 +44,11 @@ const gc_int DeltaOffset = 119;
 
 // macros
 
-#define DISTANCE(square_1,square_2) (Distance[DeltaOffset+((square_2)-(square_1))])
+#define DISTANCE(square_1,square_2) ((gc_int)Distance[DeltaOffset+((square_2)-(square_1))])
 
 // variables
 
-extern gc_int Distance[DeltaNb];
+extern sint8 Distance[DeltaNb];
 
 // functions
 

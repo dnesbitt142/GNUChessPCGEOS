@@ -92,22 +92,22 @@ static /* const */ gc_int Bonus[RankNb];
 
 // variables
 
-gc_int BitEQ[16];
-gc_int BitLT[16];
-gc_int BitLE[16];
-gc_int BitGT[16];
-gc_int BitGE[16];
+uint8 BitEQ[16];
+uint8 BitLT[16];
+uint8 BitLE[16];
+uint8 BitGT[16];
+uint8 BitGE[16];
 
-gc_int BitFirst[0x100];
-gc_int BitLast[0x100];
-gc_int BitCount[0x100];
-gc_int BitRev[0x100];
+uint8 BitFirst[0x100];
+uint8 BitLast[0x100];
+uint8 BitCount[0x100];
+uint8 BitRev[0x100];
 
 static pawn_t Pawn[1];
 
-static gc_int BitRank1[RankNb];
-static gc_int BitRank2[RankNb];
-static gc_int BitRank3[RankNb];
+static uint8 BitRank1[RankNb];
+static uint8 BitRank2[RankNb];
+static uint8 BitRank3[RankNb];
 
 // prototypes
 
@@ -293,7 +293,7 @@ static void pawn_comp_info(pawn_info_t * info, const board_t * board) {
    gc_int colour;
    gc_int file, rank;
    gc_int me, opp;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int sq;
    bool backward, candidate, doubled, isolated, open, passed;
    gc_int t1, t2;

@@ -590,7 +590,7 @@ static void eval_piece(const board_t * board, const material_info_t * mat_info, 
    gc_int op[ColourNb], eg[ColourNb];
    gc_int me, opp;
    gc_int opp_flag;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from, to;
    gc_int piece;
    gc_int mob;
@@ -808,7 +808,7 @@ static void eval_king(const board_t * board, const material_info_t * mat_info, g
    gc_int tmp;
    gc_int penalty;
    gc_int king;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int piece;
    gc_int attack_tot;
    gc_int piece_nb;
@@ -1125,7 +1125,7 @@ static bool unstoppable_passer(const board_t * board, gc_int pawn, gc_int colour
    gc_int file, rank;
    gc_int king;
    gc_int prom;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int sq;
    gc_int dist;
 
@@ -1273,7 +1273,7 @@ static void draw_init_list(gc_int list[], const board_t * board, gc_int pawn_col
 
    gc_int pos;
    gc_int att, def;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int sq;
    gc_int pawn;
    gc_int i;
@@ -1902,7 +1902,7 @@ static gc_int storm_file(const board_t * board, gc_int file, gc_int colour) {
 
 static bool bishop_can_attack(const board_t * board, gc_int to, gc_int colour) {
 
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from;
    gc_int piece;
 

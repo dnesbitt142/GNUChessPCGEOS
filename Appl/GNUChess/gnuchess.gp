@@ -1,12 +1,15 @@
 name gnuchess.app
-longname "GNU Chess 6.3.0"
+longname "GNU Chess"
 tokenchars "GnCh"
 tokenid 0
 type appl, process, single
 class GNUChessProcessClass
 appobj GNUChessApp
+export GNUChessApplicationClass
+export GNUChessBoardClass
 stack 49152
 heapspace 16000
+platform geos20
 library geos
 library ui
 library ansic
@@ -24,15 +27,11 @@ resource piece_DATA1 data fixed
 resource pst_DATA1 data fixed
 resource search_DATA1 data fixed
 resource sort_DATA1 data fixed
-resource square_DATA1 data fixed
-resource value_DATA1 data fixed
-resource vector_DATA1 data fixed
 resource board_DATA1 data fixed
 resource eval_DATA2 data fixed
 resource fen_DATA1 data fixed
 resource material_DATA1 data fixed
 resource option_DATA1 data fixed
-resource pawn_DATA2 data fixed
 resource pst_DATA2 data fixed
 resource random_DATA1 data fixed
 resource random_DATA2 data fixed

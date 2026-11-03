@@ -284,7 +284,7 @@ static bool add_pawn_captures(list_t * list, const board_t * board, gc_int to, b
 static bool add_piece_moves(list_t * list, const board_t * board, gc_int to, bool legal, bool stop) {
 
    gc_int me;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from, piece;
 
    ASSERT(list!=NULL);

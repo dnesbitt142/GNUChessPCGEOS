@@ -98,9 +98,9 @@ const gc_int BlackKing12   = 11;
 #define PIECE_IS_KING(piece)     (((piece)&KingFlag)!=0)
 #define PIECE_IS_SLIDER(piece)   (((piece)&QueenFlags)!=0)
 
-#define PIECE_TO_12(piece)       (PieceTo12[piece])
+#define PIECE_TO_12(piece)       ((gc_int)PieceTo12[piece])
 
-#define PIECE_ORDER(piece)       (PieceOrder[piece])
+#define PIECE_ORDER(piece)       ((gc_int)PieceOrder[piece])
 
 #define PAWN_MOVE_INC(colour)    (PawnMoveInc[colour])
 #define PIECE_INC(piece)         (PieceInc[piece])
@@ -124,8 +124,8 @@ extern const inc_t KingInc[8+1];
 
 // variables
 
-extern gc_int PieceTo12[PieceNb];
-extern gc_int PieceOrder[PieceNb];
+extern sint8 PieceTo12[PieceNb];
+extern sint8 PieceOrder[PieceNb];
 
 extern const inc_t * PieceInc[PieceNb];
 

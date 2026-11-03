@@ -816,7 +816,7 @@ static gc_int full_quiescence(board_t * board, gc_int alpha, gc_int beta, gc_int
    gc_int move;
    gc_int opt_value;
    attack_t attack[1];
-   sort_t sort[1];
+   sort_qs_t sort[1];
    undo_t undo[1];
    mv_t new_pv[HeightMax];
 

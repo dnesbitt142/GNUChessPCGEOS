@@ -34,7 +34,7 @@ namespace engine {
 
 // variables
 
-gc_int Distance[DeltaNb];
+sint8 Distance[DeltaNb];
 
 // functions
 

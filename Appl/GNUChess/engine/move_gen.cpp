@@ -135,7 +135,7 @@ static void add_moves(list_t * list, const board_t * board) {
 
    gc_int me, opp;
    gc_int opp_flag;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from, to;
    gc_int piece, capture;
    const inc_t * inc_ptr;
@@ -215,7 +215,7 @@ static void add_captures(list_t * list, const board_t * board) {
 
    gc_int me, opp;
    gc_int opp_flag;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from, to;
    gc_int piece, capture;
 
@@ -423,7 +423,7 @@ static void add_captures(list_t * list, const board_t * board) {
 static void add_quiet_moves(list_t * list, const board_t * board) {
 
    gc_int me;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from, to;
    gc_int piece;
 

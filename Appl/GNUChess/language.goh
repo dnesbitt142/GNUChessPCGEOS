@@ -1,0 +1,179 @@
+/* Native GEOS VM language catalog. GPL-3.0-or-later. */
+enum {
+    GCT_FILE,
+    GCT_ABOUT,
+    GCT_ABOUT_PRODUCT,
+    GCT_BUILD_DATE,
+    GCT_NEW,
+    GCT_ENGINE,
+    GCT_UNDO,
+    GCT_DEPTH,
+    GCT_MOVE,
+    GCT_PLAY,
+    GCT_BOARD_HINT,
+    GCT_MEMORY,
+    GCT_WHITE_WINS,
+    GCT_BLACK_WINS,
+    GCT_STALEMATE,
+    GCT_REPETITION,
+    GCT_FIFTY_MOVES,
+    GCT_MATERIAL,
+    GCT_WHITE_TURN,
+    GCT_BLACK_TURN,
+    GCT_WHITE_CHECK,
+    GCT_BLACK_CHECK,
+    GCT_THINKING,
+    GCT_ILLEGAL,
+    GCT_NO_UNDO,
+    GCT_TITLE,
+    GCT_PIECES,
+    GCT_COUNT
+};
+
+#define GC_LANGUAGE_ID 0x4743
+#define GC_LANGUAGE_HEADER (sizeof(word) * (3 + GCT_COUNT))
+#define GC_LANGUAGE_MAX 4096
+
+@ifdef GNUCHESS_GERMAN
+@include "language_de.goh"
+@endif
+
+static MemHandle languageH;
+static void SetStatus(const char *text);
+
+static const word * _pascal LockLanguage(void)
+{
+    return languageH ? (const word *)MemLock(languageH) : (void *)0;
+}
+
+static const char * _pascal LanguageText(const word *catalogP, word id,
+                                        const char *fallbackP)
+{
+@ifdef GNUCHESS_GERMAN
+    if (!catalogP) catalogP = GermanCatalog;
+@endif
+    return catalogP ? (const char *)catalogP + catalogP[3 + id] : fallbackP;
+}
+
+static word _pascal LanguageSize(const word *catalogP, word blockSize)
+{
+    const char *dataP = (const char *)catalogP;
+    word size = catalogP[2];
+    word id, pos = GC_LANGUAGE_HEADER, start;
+    /* VMInfo can report a resident block's paragraph-rounded size. */
+    if (catalogP[0] != 1 || catalogP[1] != GCT_COUNT
+        || size < GC_LANGUAGE_HEADER || size > blockSize || blockSize - size > 15)
+        return 0;
+    for (id = 0; id < GCT_COUNT; id++) {
+        if (catalogP[3 + id] != pos || pos >= size || !dataP[pos]) return 0;
+        start = pos;
+        while (pos < size && dataP[pos]) pos++;
+        if (pos == size || pos - start > 119) return 0;
+        pos++;
+    }
+    return pos == size ? size : 0;
+}
+
+static void _pascal LoadLanguage(void)
+{
+    VMFileHandle fileH = 0;
+    VMBlockHandle mapH;
+    MemHandle mapMemH;
+    VMInfoStruct info;
+    word size;
+    const word *catalogP;
+    void *copyP;
+    if (languageH) return;
+    FilePushDir();
+    if (FileSetCurrentPath(SP_USER_DATA, ""))
+        fileH = VMOpen("GNUCHESS.VM", VMAF_FORCE_READ_ONLY, VMO_OPEN, 0);
+    FilePopDir();
+    if (!fileH) return;
+    mapH = VMGetMapBlock(fileH);
+    if (mapH && VMInfo(fileH, mapH, &info) && info.userId == GC_LANGUAGE_ID
+        && info.size >= GC_LANGUAGE_HEADER && info.size <= GC_LANGUAGE_MAX) {
+        catalogP = (const word *)VMLock(fileH, mapH, &mapMemH);
+        if (catalogP) {
+            size = LanguageSize(catalogP, info.size);
+            if (size) {
+                languageH = MemAlloc(size, HF_SWAPABLE, HAF_ZERO_INIT);
+                copyP = (void *)LockLanguage();
+                if (copyP) {
+                    memcpy(copyP, catalogP, size);
+                    MemUnlock(languageH);
+                } else if (languageH) {
+                    MemFree(languageH);
+                    languageH = 0;
+                }
+            }
+            VMUnlock(mapMemH);
+        }
+    }
+    VMClose(fileH, FALSE);
+}
+
+static void _pascal ApplyLanguage(void)
+{
+    const word *catalogP;
+    LoadLanguage();
+    catalogP = LockLanguage();
+    if (!LanguageText(catalogP, GCT_FILE, (void *)0)) return;
+    @call GNUChessApp::MSG_GC_SET_WINDOW_TITLE(LanguageText(catalogP,GCT_TITLE,0));
+    @call GCFileMenu::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_FILE,0),VUM_MANUAL);
+    @call GCAboutDialog::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_ABOUT,0),VUM_MANUAL);
+    @call GCAboutInfo::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_ABOUT_PRODUCT,0),VUM_MANUAL);
+    @call GCAboutDateTitle::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_BUILD_DATE,0),VUM_MANUAL);
+    @call NewButton::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_NEW,0),VUM_MANUAL);
+    @call EngineButton::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_ENGINE,0),VUM_MANUAL);
+    @call UndoButton::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_UNDO,0),VUM_MANUAL);
+    @call DepthButton::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_DEPTH,0),VUM_MANUAL);
+    @call MoveText::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_MOVE,0),VUM_MANUAL);
+    @call MoveButton::MSG_GEN_REPLACE_VIS_MONIKER_TEXT(LanguageText(catalogP,GCT_PLAY,0),VUM_MANUAL);
+    if (catalogP) MemUnlock(languageH);
+}
+
+static char _pascal DisplayPieceLetter(char piece)
+{
+    const word *catalogP = LockLanguage();
+    const char *piecesP;
+    const char *const enginePiecesP = "KQRBNPkqrbnp";
+    const char *indexP;
+    piecesP = LanguageText(catalogP, GCT_PIECES, (void *)0);
+    if (piecesP) {
+        indexP = strchr(enginePiecesP, piece);
+        if (indexP && strlen(piecesP) == 12) piece = piecesP[indexP - enginePiecesP];
+    }
+    if (catalogP) MemUnlock(languageH);
+    return piece;
+}
+
+static void _pascal DrawBoardHint(GStateHandle gs, sword x, sword y)
+{
+    const word *catalogP = LockLanguage();
+    GrDrawText(gs, x, y, LanguageText(catalogP, GCT_BOARD_HINT,
+                                     "Click a piece, then its destination."), 0);
+    if (catalogP) MemUnlock(languageH);
+}
+
+static void _pascal SetTurnStatus(word id, const char *fallbackP,
+                                  short depth, const char *moveP)
+{
+    const word *catalogP = LockLanguage();
+    const char *textP = LanguageText(catalogP, id, fallbackP);
+    const char *partP;
+    char line[120], *outP = line, *endP = line + sizeof(line) - 1;
+    while (*textP && outP < endP) {
+        if (textP[0] == '%' && textP[1] == 'd') {
+            *outP++ = '0' + depth;
+            textP += 2;
+        } else if (textP[0] == '%' && textP[1] == 'm') {
+            for (partP = moveP; *partP && outP < endP; partP++) *outP++ = *partP;
+            textP += 2;
+        } else {
+            *outP++ = *textP++;
+        }
+    }
+    *outP = 0;
+    if (catalogP) MemUnlock(languageH);
+    SetStatus(line);
+}

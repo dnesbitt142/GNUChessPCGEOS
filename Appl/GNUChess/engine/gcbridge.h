@@ -17,6 +17,7 @@ void GC_API GCNewGame(void);
 short GC_API GCPlay(const char *coordinate);
 short GC_API GCEngine(short depth, char *result /* six bytes */);
 short GC_API GCUndo(void); /* one-level undo: human move plus automatic reply */
+/* Return spaces until GCInit succeeds. Reading squares never allocates. */
 void GC_API GCGetSquares(char *squares /* 64 bytes, a1 through h8 */);
 short GC_API GCTurn(void); /* 0 white, 1 black */
 /* 0 playing, 1 check, 2 mate, 3 stalemate, 4 threefold, 5 fifty moves,

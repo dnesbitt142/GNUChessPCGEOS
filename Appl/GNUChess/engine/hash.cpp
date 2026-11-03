@@ -59,7 +59,7 @@ uint64 hash_key(const board_t * board) {
 
    uint64 key;
    gc_int colour;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int sq, piece;
 
    ASSERT(board!=NULL);
@@ -105,7 +105,7 @@ uint64 hash_pawn_key(const board_t * board) {
 
    uint64 key;
    gc_int colour;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int sq, piece;
 
    ASSERT(board!=NULL);

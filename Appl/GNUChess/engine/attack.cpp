@@ -37,16 +37,18 @@ namespace engine {
 
 // variables
 
-gc_int DeltaIncLine[DeltaNb];
-gc_int DeltaIncAll[DeltaNb];
+sint8 DeltaIncLine[DeltaNb];
+sint8 DeltaIncAll[DeltaNb];
 
-gc_int DeltaMask[DeltaNb];
-gc_int IncMask[IncNb];
+uint8 DeltaMask[DeltaNb];
+uint8 IncMask[IncNb];
 
-static gc_int PieceCode[PieceNb];
+static sint8 PieceCode[PieceNb]; // -1 or attack kind 0..3
 
-static sint16 PieceDeltaSize[4][256]; // 4kB
-static sint16 PieceDeltaDelta[4][256][4]; // 16 kB
+// Every difference of two legal squares is -119..119. The unchanged
+// builder retains at most two distinct targets per row, followed by zero.
+static uint8 PieceDeltaSize[4][DeltaNb];
+static sint8 PieceDeltaDelta[4][DeltaNb][2+1];
 
 // prototypes
 
@@ -171,7 +173,7 @@ void attack_init() {
    // PieceDeltaSize[][] & PieceDeltaDelta[][][]
 
    for (piece = 0; piece < 4; piece++) {
-      for (delta = 0; delta < 256; delta++) {
+      for (delta = 0; delta < DeltaNb; delta++) {
          PieceDeltaSize[piece][delta] = 0;
       }
    }
@@ -231,7 +233,7 @@ void attack_init() {
    }
 
    for (piece = 0; piece < 4; piece++) {
-      for (delta = 0; delta < 256; delta++) {
+      for (delta = 0; delta < DeltaNb; delta++) {
          size = PieceDeltaSize[piece][delta];
          ASSERT(size>=0&&size<3);
          PieceDeltaDelta[piece][delta][size] = DeltaNone;
@@ -270,7 +272,7 @@ bool is_attacked(const board_t * board, gc_int to, gc_int colour) {
 
    gc_int inc;
    gc_int pawn;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from;
    gc_int piece;
    gc_int delta;
@@ -397,7 +399,7 @@ bool attack_is_ok(const attack_t * attack) {
 void attack_set(attack_t * attack, const board_t * board) {
 
    gc_int me, opp;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from, to;
    gc_int inc;
    gc_int pawn;
@@ -481,7 +483,7 @@ bool piece_attack_king(const board_t * board, gc_int piece, gc_int from, gc_int 
 
    const inc_t * inc_ptr;
    gc_int code;
-   const sint16 * delta_ptr;
+   const sint8 * delta_ptr;
    gc_int delta, inc;
    gc_int to;
    gc_int sq;

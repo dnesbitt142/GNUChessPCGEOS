@@ -268,7 +268,7 @@ static gc_int see_rec(alists_t * alists, const board_t * board, gc_int colour, g
 
 static void alist_build(alist_t * alist, const board_t * board, gc_int to, gc_int colour) {
 
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from;
    gc_int piece;
    gc_int delta;

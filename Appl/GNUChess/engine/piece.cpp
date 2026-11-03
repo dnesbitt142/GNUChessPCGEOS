@@ -74,8 +74,8 @@ const inc_t KingInc[8+1] = {
 
 // variables
 
-gc_int PieceTo12[PieceNb];
-gc_int PieceOrder[PieceNb];
+sint8 PieceTo12[PieceNb];
+sint8 PieceOrder[PieceNb];
 
 const inc_t * PieceInc[PieceNb];
 

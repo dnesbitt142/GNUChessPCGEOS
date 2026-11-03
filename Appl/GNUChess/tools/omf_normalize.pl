@@ -8,14 +8,15 @@
 # CONST, CONST2, _DATA and _BSS to paragraph (16-byte) alignment and removes the
 # empty Watcom debug marker that Glue can mistake for CodeView32 metadata.
 #
-# The operation is intentionally narrow: no code, fixups, resource/LMem
-# segments, or symbol values are modified.
+# Redirect Watcom division and SDK memcpy to the app's 8086 helpers.
+# Code, fixups, resource/LMem segments, and symbol values are preserved.
 
 use strict;
 use warnings;
 use Fcntl qw(:DEFAULT);
 
 my %COMMON = map { $_ => 1 } qw(CONST CONST2 _DATA _BSS);
+my %REMAP = ('__I4D' => 'GCI4D', MEMCPY => 'GCCOPY');
 
 sub _read_index {
     my ($data, $pos) = @_;
@@ -83,6 +84,25 @@ sub normalize_file {
             }
         }
 
+        my $changed = 0;
+
+        # EXTDEF: some SDK versions publish 386 code for these names.
+        # Keep the length and indexes unchanged so FIXUPP needs no edits.
+        if ($type == 0x8c) {
+            my $j = 0;
+            while ($j < length($payload)) {
+                my $n = ord(substr($payload, $j++, 1));
+                die "$path: truncated EXTDEF name\n" if $j + $n > length($payload);
+                my $symbol = substr($payload, $j, $n);
+                if (exists $REMAP{$symbol}) {
+                    substr($raw, 3 + $j, $n, $REMAP{$symbol});
+                    push @changes, $symbol;
+                    $changed = 1;
+                }
+                (undef, $j) = _read_index($payload, $j + $n);
+            }
+        }
+
         # SEGDEF / SEGDEF32
         if ($type == 0x98 || $type == 0x99) {
             die "$path: truncated SEGDEF record\n" unless length($payload);
@@ -105,16 +125,17 @@ sub normalize_file {
                 # First payload byte is byte 3 of the complete record.
                 substr($raw, 3, 1, chr(($attr & 31) | (3 << 5)));
 
-                # Recompute OMF checksum: sum of all bytes including checksum
-                # must be 0 modulo 256.
-                my $body = substr($raw, 0, length($raw) - 1);
-                my $sum = 0;
-                $sum = ($sum + $_) & 0xff for unpack('C*', $body);
-                substr($raw, -1, 1, chr((- $sum) & 0xff));
                 push @changes, $name;
+                $changed = 1;
             }
         }
 
+        if ($changed) {
+            my $body = substr($raw, 0, length($raw) - 1);
+            my $sum = 0;
+            $sum = ($sum + $_) & 0xff for unpack('C*', $body);
+            substr($raw, -1, 1, chr((- $sum) & 0xff));
+        }
         $out .= $raw;
         $pos += $raw_len;
     }

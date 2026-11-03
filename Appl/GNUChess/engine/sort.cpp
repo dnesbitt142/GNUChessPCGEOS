@@ -93,14 +93,14 @@ enum test_t {
 
 // variables
 
-static gc_int PosLegalEvasion;
-static gc_int PosSEE;
+static uint8 PosLegalEvasion;
+static uint8 PosSEE;
 
-static gc_int PosEvasionQS;
-static gc_int PosCheckQS;
-static gc_int PosCaptureQS;
+static uint8 PosEvasionQS;
+static uint8 PosCheckQS;
+static uint8 PosCaptureQS;
 
-static gc_int Code[CODE_SIZE];
+static uint8 Code[CODE_SIZE];
 
 static uint16 Killer[HeightMax][KillerNb];
 
@@ -126,6 +126,13 @@ static bool capture_is_good   (gc_int move, const board_t * board);
 static gc_int  mvv_lva           (gc_int move, const board_t * board);
 
 static gc_int  history_index     (gc_int move, const board_t * board);
+
+static void replay_bad_moves(list_t * list, const bad_moves_t * bad) {
+   ASSERT(bad->size<=ListSize);
+   list->size = bad->size;
+   memcpy(list->move,bad->move,
+          (unsigned short)(bad->size*sizeof(bad->move[0])));
+}
 
 // functions
 
@@ -201,19 +208,14 @@ void sort_init(sort_t * sort, board_t * board, const attack_t * attack, gc_int d
    ASSERT(trans_killer==MoveNone||move_is_ok(trans_killer));
 
    sort->board = board;
-   sort->attack = attack;
-
-   sort->depth = depth;
-   sort->height = height;
-
    sort->trans_killer = trans_killer;
-   sort->killer_1 = Killer[sort->height][0];
-   sort->killer_2 = Killer[sort->height][1];
+   sort->killer_1 = Killer[height][0];
+   sort->killer_2 = Killer[height][1];
 
-   if (ATTACK_IN_CHECK(sort->attack)) {
+   if (ATTACK_IN_CHECK(attack)) {
 
-      gen_legal_evasions(sort->list,sort->board,sort->attack);
-      note_moves(sort->list,sort->board,sort->height,sort->trans_killer);
+      gen_legal_evasions(sort->list,sort->board,attack);
+      note_moves(sort->list,sort->board,height,sort->trans_killer);
       list_sort(sort->list);
 
       sort->gen = PosLegalEvasion + 1;
@@ -269,6 +271,7 @@ gc_int sort_next(sort_t * sort) {
             if (move == sort->trans_killer) continue;
 
             if (!capture_is_good(move,sort->board)) {
+               ASSERT(sort->bad->size<ListSize);
                LIST_ADD(sort->bad,move);
                continue;
             }
@@ -339,7 +342,9 @@ gc_int sort_next(sort_t * sort) {
 
       } else if (gen == GEN_BAD_CAPTURE) {
 
-         list_copy(sort->list,sort->bad);
+         // Preserve insertion order exactly. TEST_BAD_CAPTURE never reads
+         // list->value, so copying a score array would serve no purpose.
+         replay_bad_moves(sort->list,sort->bad);
 
          sort->test = TEST_BAD_CAPTURE;
 
@@ -372,7 +377,7 @@ gc_int sort_next(sort_t * sort) {
 
 // sort_init_qs()
 
-void sort_init_qs(sort_t * sort, board_t * board, const attack_t * attack, bool check) {
+void sort_init_qs(sort_qs_t * sort, board_t * board, const attack_t * attack, bool check) {
 
    ASSERT(sort!=NULL);
    ASSERT(board!=NULL);
@@ -396,7 +401,7 @@ void sort_init_qs(sort_t * sort, board_t * board, const attack_t * attack, bool 
 
 // sort_next_qs()
 
-gc_int sort_next_qs(sort_t * sort) {
+gc_int sort_next_qs(sort_qs_t * sort) {
 
    gc_int move;
    gc_int gen;

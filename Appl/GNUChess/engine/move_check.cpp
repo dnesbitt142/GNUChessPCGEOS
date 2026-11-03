@@ -76,7 +76,8 @@ static void add_quiet_checks(list_t * list, const board_t * board) {
 
    gc_int me, opp;
    gc_int king;
-   const sq_t * ptr, * ptr_2;
+   const board_sq_t * ptr;
+   const gc_int * pin_ptr; // pin[] retains arithmetic-width square storage
    gc_int from, to, sq;
    gc_int piece;
    const inc_t * inc_ptr;
@@ -99,7 +100,7 @@ static void add_quiet_checks(list_t * list, const board_t * board) {
 
    // indirect checks
 
-   for (ptr = pin; (from=*ptr) != SquareNone; ptr++) {
+   for (pin_ptr = pin; (from=*pin_ptr) != SquareNone; pin_ptr++) {
 
       piece = board->square[from];
 
@@ -154,7 +155,7 @@ static void add_quiet_checks(list_t * list, const board_t * board) {
 
    for (ptr = &board->piece[me][1]; (from=*ptr) != SquareNone; ptr++) { // HACK: no king
 
-      for (ptr_2 = pin; (sq=*ptr_2) != SquareNone; ptr_2++) {
+      for (pin_ptr = pin; (sq=*pin_ptr) != SquareNone; pin_ptr++) {
          if (sq == from) goto next_piece;
       }
 
@@ -350,7 +351,7 @@ static void find_pins(gc_int list[], const board_t * board) {
 
    gc_int me, opp;
    gc_int king;
-   const sq_t * ptr;
+   const board_sq_t * ptr;
    gc_int from;
    gc_int piece;
    gc_int delta;
